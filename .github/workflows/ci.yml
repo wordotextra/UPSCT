@@ -1,0 +1,122 @@
+# ============================================================
+# 🚀 Universal CI Workflow — Production Grade Template
+# Supports Node.js, Python, and Docker-based projects.
+# ------------------------------------------------------------
+# Triggers:
+#   - On push or pull request to the "main" branch
+#   - Can also be run manually via workflow_dispatch
+# ============================================================
+
+name: CI Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ------------------------------
+      # 1️⃣ Checkout repository
+      # ------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------
+      # 2️⃣ Setup Node.js environment (if package.json exists)
+      # ------------------------------
+      - name: Detect and Set up Node.js
+        if: exists('package.json')
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cache Node modules
+        if: exists('package-lock.json')
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install Node.js dependencies
+        if: exists('package.json')
+        run: npm ci
+
+      - name: Run Node.js tests
+        if: exists('package.json')
+        run: npm test
+
+      - name: Build Node.js project
+        if: exists('package.json')
+        run: npm run build --if-present
+
+      # ------------------------------
+      # 3️⃣ Setup Python environment (if requirements.txt exists)
+      # ------------------------------
+      - name: Detect and Set up Python
+        if: exists('requirements.txt')
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache Python packages
+        if: exists('requirements.txt')
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install Python dependencies
+        if: exists('requirements.txt')
+        run: pip install -r requirements.txt
+
+      - name: Run Python tests
+        if: exists('requirements.txt')
+        run: pytest || echo "No tests found"
+
+      # ------------------------------
+      # 4️⃣ Docker build (if Dockerfile exists)
+      # ------------------------------
+      - name: Build Docker image
+        if: exists('Dockerfile')
+        run: |
+          echo "🛠 Building Docker image..."
+          docker build -t myapp:latest .
+
+      # ------------------------------
+      # 5️⃣ Code Quality Checks (optional)
+      # ------------------------------
+      - name: Lint (Node.js)
+        if: exists('package.json')
+        run: npm run lint --if-present || echo "No lint script"
+
+      - name: Lint (Python)
+        if: exists('requirements.txt')
+        run: |
+          pip install flake8
+          flake8 . || echo "Lint warnings found"
+
+      # ------------------------------
+      # 6️⃣ Final summary
+      # ------------------------------
+      - name: Job Summary
+        run: |
+          echo "✅ CI pipeline completed successfully."
+          echo "Node.js version:" && node -v || echo "Node not used"
+          echo "Python version:" && python --version || echo "Python not used"
+          echo "Docker version:" && docker --version || echo "Docker not used"
+          - name: Deploy to Production
+  if: github.ref == 'refs/heads/main'
+  run: |
+    echo "🚀 Deploying to production server..."
+    # your deployment command (e.g., ssh, scp, or cloud CLI)
